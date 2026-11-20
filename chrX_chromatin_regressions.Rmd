@@ -63,7 +63,7 @@ source(paste0(myPath,"/functions/linearModelingFunctions.R"))
 ## R
 # peaks<-read.delim("consensusPeakset.bed", check.names=FALSE, stringsAsFactors = FALSE, header=FALSE)
 # colnames(peaks)<-c("Chr", "Start", "End")
-# peaks$Strand<-"+" #dummy for SAF file
+# peaks$Strand<-"*" #dummy for SAF file
 # peaks$rowNum<-1:nrow(peaks)
 # peaks$GeneID<-paste0("Peak_", as.character(peaks$rowNum))
 
@@ -82,10 +82,10 @@ source(paste0(myPath,"/functions/linearModelingFunctions.R"))
 # b<-featureCounts(files=readLines(TXT_FILE_BAM_PATHS_LIST.TXT),annot.ext=REGION_FILE.SAF, allowMultiOverlap=TRUE, isPairedEnd = TRUE, requireBothEndsMapped = TRUE, maxFragLength=2000, countChimericFragments = FALSE, autosort=TRUE)
 # write.table(x=data.frame(b$annotation[,'GeneID'],b$counts,stringsAsFactors=FALSE, check.names=FALSE), file=COUNTS_FILE.TXT, quote=FALSE,sep="\t",row.names=FALSE)
 
-### some samples have multiple replicates in this case, add the counts together (R). Note that the METADATA_UNCOMBINED.TXT metadata file provided should have unique sample names in the first column (matching their sample names in the counts file from featureCounts!), autosomal read counts for each sample in a column called AutosomalReads, and a column called ID (samples of the same ID will be combined). 
+### some samples have multiple replicates. in this case, add the counts together (R). Note that the METADATA_UNCOMBINED.TXT metadata file provided should have unique sample names in the first column (matching their sample names in the counts file from featureCounts!), autosomal read counts for each sample in a column called AutosomalReads, and a column called ID (samples of the same ID will be combined). 
 # source(paste0(myPath,"/Scripts/processingFunctions.R"))
 # metaData<-read.delim(METADATA_UNCOMBINED.TXT, check.names=FALSE, stringsAsFactors=FALSE, row.names=1)
-# counts<-read.deim(COUNTS_FILE.TXT, check.names=FALSE, stringsAsFactors=FALSE, row.names=1)
+# counts<-read.delim(COUNTS_FILE.TXT, check.names=FALSE, stringsAsFactors=FALSE, row.names=1)
 # combined_samples<-combineReplicates(metaData, counts)
 # write.table(combined_samples[1][[1]], file='metadata_combined.txt', sep='\t', quote=FALSE, row.names = TRUE)
 # write.table(combined_samples[2][[1]], file="counts_combined.txt, sep="\t, quote=FALSE, row.names=TRUE)
