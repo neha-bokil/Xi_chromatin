@@ -1,0 +1,541 @@
+---
+title: "XiChromatin_Figure6
+output: html_notebook
+---
+
+
+```{r setup}
+```
+```{r}
+metaFile<-read.delim('20240723_metadata_combined.txt', check.names = FALSE, stringsAsFactors = FALSE)
+
+#h3K4me3 peaks
+
+k4me3_peaks_lcl_counts<-read.delim('k4me3_k4Peaks_lcl_deseq_x_normalizedcounts.txt', check.names=FALSE, stringsAsFactors = FALSE)
+igg_k4me3_peaks_lcl_counts<-read.delim('prigg_k4Peaks_lcl_deseq_x_normalizedcounts.txt', check.names=FALSE, stringsAsFactors = FALSE)
+
+k4me3_meta<-metaFile[rownames(metaFile) %in% colnames(k4me3_peaks_lcl_counts),]
+prigg_meta<-metaFile[rownames(metaFile) %in% colnames(igg_k4me3_peaks_lcl_counts),]
+
+k4me3_peaks_lcl_counts_corrected<-getCorrectedCounts(k4me3_peaks_lcl_counts, k4me3_meta, igg_k4me3_peaks_lcl_counts, prigg_meta, scaleIgG=0.391, useRegion = FALSE)
+
+k4me3_peakList<-read.delim('H3K4me3_consensusPeakset_SAF.txt', check.names = FALSE, stringsAsFactors = FALSE, header = TRUE)
+
+annoFile<-read.delim("tss1000_condensed_SAF.txt", check.names=FALSE, stringsAsFactors = FALSE, header=TRUE)
+#only want the genes in our list
+annoFile_pcg<-read.delim("annotations/pcgSAF.txt", check.names=FALSE,
+                         stringsAsFactors = FALSE, header=TRUE)
+annoFile<-annoFile[annoFile$Gene%in% annoFile_pcg$GeneID,]
+k4me3_peakListAnno<-annotatePeakFile(k4me3_peakList, annoFile)
+
+
+
+expInfo<-read.delim("lcl_fib_auto_RNA_response.txt", check.names=FALSE, stringsAsFactors = FALSE)
+expGenes_lcl<-expInfo[is.na(expInfo$lcl_baseMean) == FALSE,]$Gene
+
+autosomalPeaks<-k4me3_peakListAnno[k4me3_peakListAnno$Chr !="chrX" & k4me3_peakListAnno$Chr != "chrY",]$PeakID
+
+k4me3_peaks_lcl_counts_corrected$level<-rowMeans(k4me3_peaks_lcl_counts_corrected)/2
+
+peakIDs<-c()
+chroms<-c()
+levels<-c()
+expStatus<-c()
+genes<-c()
+
+for (peak in autosomalPeaks) {
+  if (peak %in% peakIDs==FALSE) {
+    chr<-unique(k4me3_peakListAnno[k4me3_peakListAnno$PeakID==peak,]$Chr)
+    level<-k4me3_peaks_lcl_counts_corrected[rownames(k4me3_peaks_lcl_counts_corrected)==peak,]$level
+    peakGenes<-k4me3_peakListAnno[k4me3_peakListAnno$PeakID==peak,]$Gene
+    for (gene in peakGenes) {
+      if (gene %in% expGenes_lcl) {
+        exp<-"expressed"
+      }
+      else {
+        exp<-"not expressed"
+      }
+      peakIDs<-c(peakIDs, peak)
+      chroms<-c(chroms, chr)
+      levels<-c(levels, level)
+      expStatus<-c(expStatus, exp)
+      genes<-c(genes, gene)
+    }
+    
+  }
+}
+
+autoInfo<-data.frame(PeakID=peakIDs,chr=chroms, level=levels, expressionStatus=expStatus, Gene=genes )
+autoInfo$chr<-paste0("chr", autoInfo$chr) #idk why the "chr" got dropped from the chromosome names but I'm adding them back
+
+#get gene categories
+xyauto<-getxyauto('annotations/geneAnno_proteinCoding_all_20210503.txt')
+X_genes<-xyauto[1][[1]]
+Y_genes<-xyauto[2][[1]]
+sexChrom_genes<-xyauto[3][[1]]
+PAR1_genes<-xyauto[4][[1]]
+PAR2_genes<-xyauto[5][[1]]
+PAR_genes_all<-xyauto[6][[1]]
+NPX_genes<-xyauto[7][[1]]
+NPY_genes<-xyauto[8][[1]]
+autosome_genes<-xyauto[9][[1]]
+
+npxPeaks<-k4me3_peakListAnno[k4me3_peakListAnno$Gene %in% NPX_genes,]$PeakID
+
+k4me3_peakListAnnoX<-k4me3_peakListAnno[k4me3_peakListAnno$Chr=="chrX",]
+
+k4me3_peakLm<-read.delim('lmOutput/corrected/20240917_k4me3_k4Peaks_lcl_lm_xy_minIgG.txt', check.names=FALSE, stringsAsFactors = FALSE, header=TRUE)
+k4me3_peakLm_X<-k4me3_peakLm[rownames(k4me3_peakLm) %in% k4me3_peakListAnnoX$PeakID,]
+k4me3_peakLm_X$PeakID<-rownames(k4me3_peakLm_X)
+k4me3_peakLm_X<-peakGeneMatch(k4me3_peakLm_X, k4me3_peakListAnnoX)
+k4me3_peakLm_X<-expStatus(k4me3_peakLm_X)
+
+peakIDs<-c()
+chroms<-c()
+levels<-c()
+expStatus<-c()
+genes<-c()
+
+# for (peak in npxPeaks) {
+#   if (peak %in% peakIDs==FALSE) {
+#     level<-k4me3_peakLm_X[rownames(k4me3_peakLm_X)==peak,]$intercept_his
+#     peakGenes<-k4me3_peakListAnno[k4me3_peakListAnno$PeakID==peak,]$Gene
+#     for (gene in peakGenes) {
+#       if (unique(k4me3_peakLm_X[k4me3_peakLm_X$Gene==gene,]$xaExp_lcl) =="on"){
+#         exp<-"expressed"
+#       }
+#       else {
+#         exp<-"not expressed"
+#       }
+#       peakIDs<-c(peakIDs, peak)
+#       chroms<-c(chroms, "npx")
+#       levels<-c(levels, level)
+#       expStatus<-c(expStatus, exp)
+#       genes<-c(genes, gene)
+#     }
+#     
+#   }
+# }
+
+peakIDs<-c()
+chroms<-c()
+levels<-c()
+expStatus<-c()
+genes<-c()
+
+oneXSamps<-rownames(metaFile[metaFile$x_count==1,])
+oneXdata<-k4me3_peaks_lcl_counts_corrected[,colnames(k4me3_peaks_lcl_counts_corrected) %in% oneXSamps]
+oneXdata$level<-rowMeans(oneXdata)
+for (peak in npxPeaks) {
+  level<-oneXdata[rownames(oneXdata)==peak,]$level
+  peakGenes<-k4me3_peakListAnno[k4me3_peakListAnno$PeakID==peak,]$Gene
+  for (gene in peakGenes) {
+    if (unique(k4me3_peakLm_X[k4me3_peakLm_X$Gene==gene,]$xaExp_lcl) =="on"){
+      exp<-"expressed"
+    }
+    else {
+      exp<-"not expressed"
+    }
+    
+          peakIDs<-c(peakIDs, peak)
+          chroms<-c(chroms, "Xa_NPX")
+          levels<-c(levels, level)
+          expStatus<-c(expStatus, exp)
+          genes<-c(genes, gene)
+  }
+}
+
+XaInfo<-data.frame(PeakID=peakIDs,chr=chroms, level=levels, expressionStatus=expStatus, Gene=genes)
+
+
+#Xi
+
+peakIDs<-c()
+chroms<-c()
+levels<-c()
+expStatus<-c()
+genes<-c()
+
+
+for (peak in npxPeaks) {
+  if (peak %in% peakIDs==FALSE) {
+    level<-k4me3_peakLm_X[rownames(k4me3_peakLm_X)==peak,]$x_his_coeff
+    peakGenes<-k4me3_peakListAnno[k4me3_peakListAnno$PeakID==peak,]$Gene
+    for (gene in peakGenes) {
+      exp<-unique(k4me3_peakLm_X[k4me3_peakLm_X$Gene==gene,]$xciStatus_lcl)
+      peakIDs<-c(peakIDs, peak)
+      chroms<-c(chroms, "Xi_NPX")
+      levels<-c(levels, level)
+      expStatus<-c(expStatus, exp)
+      genes<-c(genes, gene)
+    }
+
+  }
+}
+
+XiInfo<-data.frame(PeakID=peakIDs,chr=chroms, level=levels, expressionStatus=expStatus, Gene=genes)
+XiInfo$expressionStatus[XiInfo$Gene=="XIST"]<-"Xi-expressed"
+XiInfo<-XiInfo[XiInfo$expressionStatus!="no XCI call",]
+
+#Y
+
+npyPeaks<-k4me3_peakListAnno[k4me3_peakListAnno$Gene %in% NPY_genes,]$PeakID
+oneYSamps<-rownames(metaFile[metaFile$y_count==1,])
+oneYdata<-k4me3_peaks_lcl_counts_corrected[,colnames(k4me3_peaks_lcl_counts_corrected) %in% oneYSamps]
+oneYdata$level<-rowMeans(oneYdata)
+
+deltaey<-read.delim("genelists/deltaEy_lcl_fib.txt", check.names = FALSE, stringsAsFactors = FALSE)
+expGenes_y<-unique(deltaey$Gene)
+
+peakIDs<-c()
+chroms<-c()
+levels<-c()
+expStatus<-c()
+genes<-c()
+
+
+
+for (peak in npyPeaks) {
+  level<-oneYdata[rownames(oneYdata)==peak,]$level
+  peakGenes<-k4me3_peakListAnno[k4me3_peakListAnno$PeakID==peak,]$Gene
+  
+  for (gene in peakGenes) {
+    if (gene %in% expGenes_y){
+      exp<-"expressed"
+    }
+    else {
+      exp<-"not expressed"
+    }
+    
+    peakIDs<-c(peakIDs, peak)
+    chroms<-c(chroms, "NPY")
+    levels<-c(levels, level)
+    expStatus<-c(expStatus, exp)
+    genes<-c(genes, gene)
+  }
+}
+
+YInfo<-data.frame(PeakID=peakIDs,chr=chroms, level=levels, expressionStatus=expStatus, Gene=genes)
+
+
+
+#par
+peakIDs<-c()
+chroms<-c()
+levels<-c()
+expStatus<-c()
+genes<-c()
+
+Par1Peaks<-k4me3_peakListAnno[k4me3_peakListAnno$Gene %in% PAR1_genes,]$PeakID
+for (peak in Par1Peaks) {
+  xaLevel<-k4me3_peakLm[rownames(k4me3_peakLm)==peak,]$intercept_his
+  xiLevel<-k4me3_peakLm[rownames(k4me3_peakLm)==peak,]$x_his_coeff
+  yLevel<-k4me3_peakLm[rownames(k4me3_peakLm)==peak,]$y_his_coeff
+  peakGenes<-k4me3_peakListAnno[k4me3_peakListAnno$PeakID==peak,]$Gene
+  for (gene in peakGenes) {
+    if (unique(k4me3_peakLm_X[k4me3_peakLm_X$Gene==gene,]$expStatus_lcl)=="expressed") {
+      exp<-"expressed"
+    }
+    else {
+      exp<-"not expressed"
+    }
+    
+    #Xa
+    
+    peakIDs<-c(peakIDs, peak)
+    chroms<-c(chroms, "Xa_PAR")
+    levels<-c(levels, xaLevel)
+    expStatus<-c(expStatus, exp)
+    genes<-c(genes, gene)
+    #Xi
+    peakIDs<-c(peakIDs, peak)
+    chroms<-c(chroms, "Xi_PAR")
+    levels<-c(levels, xiLevel)
+    expStatus<-c(expStatus, exp)
+    genes<-c(genes, gene)
+    #Y
+    peakIDs<-c(peakIDs, peak)
+    chroms<-c(chroms, "Y_PAR")
+    levels<-c(levels, yLevel)
+    expStatus<-c(expStatus, exp)
+    genes<-c(genes, gene)
+  }
+}
+
+parInfo<-data.frame(PeakID=peakIDs,chr=chroms, level=levels, expressionStatus=expStatus, Gene=genes)
+
+allInfo<-rbind(autoInfo, XaInfo, XiInfo,YInfo, parInfo)
+autosomes<-paste0("chr", 1:22)
+
+
+allInfo$chr<-factor(allInfo$chr, levels=c("Xa_PAR","Xa_NPX", "Xi_PAR", "Xi_NPX", "Y_PAR", "NPY",autosomes))
+suppressPackageStartupMessages(library(ggplot2))
+#Consider grouping the two Xa categories, followed by the two Xi categories, followed by the two Y categories.
+p1<-ggplot(data=allInfo[allInfo$expressionStatus!="not expressed",], mapping = aes(x=chr, y=level))+
+  geom_boxplot(outlier.shape = NA)+theme_classic()
+
+
+allInfo$chrName<-as.character(allInfo$chr)
+allInfo$chrName[allInfo$chrName %in% c("Xa_PAR","Xa_NPX", "Xi_PAR", "Xi_NPX")]<-"chrX"
+allInfo$chrName[allInfo$chrName %in% c("Y_PAR", "NPY")]<-"chrY"
+
+allInfo$newChr<-as.character(allInfo$chr)
+for (a in 1:nrow(allInfo)) {
+  chrOG<-allInfo[a,]$chrName
+  if (chrOG %in% autosomes) {
+    newChr<-substr(chrOG, 4, nchar(chrOG))
+    allInfo$newChr[a]<-newChr
+  }
+
+}
+
+autosomeNums<-as.character(1:22)
+allInfo$newChr<-factor(allInfo$newChr, levels=c("Xa_PAR","Xa_NPX", "Xi_PAR", "Xi_NPX", "Y_PAR", "NPY", autosomeNums))
+
+p2<-ggplot(data=allInfo[allInfo$expressionStatus!="not expressed",], mapping = aes(x=newChr, y=level))+
+  geom_boxplot(outlier.shape = NA)+theme_classic()+ylim(NA, 250)+xlab("Chromosome")+ylab("H3K4me3 Level (Promoter Peaks)")+
+  theme(axis.text=element_text(size=12), axis.title=element_text(size=12))
+
+expColors<-c("expressed"="white", "not expressed"="gray", "Xi-expressed"="navyblue", "Xi-silent"="red3")
+
+p2.1<-ggplot(data=allInfo[allInfo$expressionStatus!="not expressed",], mapping = aes(x=newChr, y=level, fill=expressionStatus))+
+  geom_boxplot(outlier.shape = NA)+theme_classic()+ylim(NA, 250)+xlab("Chromosome")+ylab("H3K4me3 Level (Promoter Peaks)")+
+  theme(axis.text=element_text(size=12), axis.title=element_text(size=12))+scale_fill_manual(values=expColors)
+
+
+autosome_exp_mean<-mean(allInfo[allInfo$chr %in% c("Xa_PAR","Xa_NPX", "Xi_PAR","Xi_NPX","Y_PAR","NPY") ==FALSE & allInfo$expressionStatus =="expressed",]$level)
+
+autosome_exp_median<-median(allInfo[allInfo$chr %in% c("Xa_PAR","Xa_NPX", "Xi_PAR","Xi_NPX","Y_PAR","NPY") ==FALSE & allInfo$expressionStatus =="expressed",]$level)
+
+
+for (chromosome in unique(allInfo$chr)) {
+  if (chromosome %in% c("Xi_NPX")==FALSE) {
+    chromosome_mean<-mean(allInfo[allInfo$chr==chromosome & allInfo$expressionStatus=="expressed",]$level)
+    chromosome_median<-median(allInfo[allInfo$chr==chromosome & allInfo$expressionStatus=="expressed",]$level)
+    if (chromosome==unique(allInfo$chr)[1]) {
+      meanMed_k4<-data.frame(chr=chromosome, k4me3_mean=chromosome_mean,k4me3_median=chromosome_median)
+    }
+    else {
+      newDf<-data.frame(chr=chromosome,  k4me3_mean=chromosome_mean,k4me3_median=chromosome_median)
+      meanMed_k4<-rbind(meanMed_k4,newDf)
+    }
+  }
+  else {
+    Xi_npx_xiExp_mean<-mean(allInfo[allInfo$chr=="Xi_NPX" & allInfo$expressionStatus=="Xi-expressed",]$level)
+    Xi_npx_xiExp_median<-median(allInfo[allInfo$chr=="Xi_NPX" & allInfo$expressionStatus=="Xi-expressed",]$level)
+    
+    Xi_npx_xiSil_mean<-mean(allInfo[allInfo$chr=="Xi_NPX" & allInfo$expressionStatus=="Xi-silent",]$level)
+    Xi_npx_xiSil_median<-median(allInfo[allInfo$chr=="Xi_NPX" & allInfo$expressionStatus=="Xi-silent",]$level)
+    
+    xiDf<-data.frame(chr=c("Xi_NPX_Xi-Expressed", "Xi_NPX_Xi-silent"), k4me3_mean=c(Xi_npx_xiExp_mean,Xi_npx_xiSil_mean), k4me3_median=c(Xi_npx_xiExp_median,Xi_npx_xiSil_median))
+    meanMed_k4<-rbind(meanMed_k4, xiDf)
+  }
+  
+}
+
+autoDf<-data.frame(chr="all_autosomes",  k4me3_mean=autosome_exp_mean, k4me3_median=autosome_exp_median)
+meanMed_k4<-rbind(meanMed_k4, autoDf)
+#H3K27me3
+
+k27me3_pcg_lcl_counts<-read.delim('k27me3_pcg_lcl_deseq_x_normalizedcounts.txt', check.names=FALSE, stringsAsFactors = FALSE)
+migg_pcg_lcl_counts<-read.delim('migg_pcg_lcl_deseq_x_normalizedcounts.txt', check.names=FALSE, stringsAsFactors = FALSE)
+
+metaFile<-read.delim('20240723_metadata_combined.txt', check.names = FALSE, stringsAsFactors = FALSE)
+
+k27me3_meta<-metaFile[rownames(metaFile) %in% colnames(k27me3_pcg_lcl_counts),]
+migg_meta<-metaFile[rownames(metaFile) %in% colnames(migg_pcg_lcl_counts),]
+
+k27me3_pcg_lcl_counts_corrected<-getCorrectedCounts(k27me3_pcg_lcl_counts, k27me3_meta, migg_pcg_lcl_counts, migg_meta, scaleIgG=0.108, useRegion = FALSE)
+
+
+k27me3_lm<-read.delim("lmOutput/corrected/20240917_k27me3_pcg_lcl_lm_xy_minIgG.txt", check.names=FALSE, stringsAsFactors = FALSE)
+
+k27me3_lenNorm<-lenNormal(k27me3_pcg_lcl_counts_corrected,k27me3_lm, "/annotations/pcgSAF.txt")
+k27me3_pcg_lcl_counts_lenNorm<-k27me3_lenNorm[1][[1]]
+k27me3_lm_lenNorm<-k27me3_lenNorm[2][[1]]
+
+k27me3_lm_lenNorm<-expStatus((k27me3_lm_lenNorm))
+
+pcg_anno<-read.delim("/annotations/pcgSAF.txt", check.names=FALSE, stringsAsFactors = FALSE, header=TRUE)
+
+expInfo<-read.delim("/genelists/lcl_fib_auto_RNA_response.txt", check.names=FALSE, stringsAsFactors = FALSE)
+
+expGenes_lcl<-expInfo[is.na(expInfo$lcl_log2FC_X)==FALSE,]$Gene
+
+autosomes<-paste0("chr", 1:22)
+for (chr in autosomes) {
+  chrGenes<-pcg_anno[pcg_anno$Chr==chr,]$GeneID
+  chr_df<-k27me3_pcg_lcl_counts_lenNorm[rownames(k27me3_pcg_lcl_counts_lenNorm) %in% chrGenes,]
+  chr_df$level<-rowMeans(chr_df)/2
+  chr_df$expressionStatus<-"not expressed"
+  chr_df$expressionStatus[rownames(chr_df) %in% expGenes_lcl]<-"expressed"
+  chr_df$chr<-chr
+  chr_df<-chr_df[, colnames(chr_df) %in% c("level", "expressionStatus",  "chr")]
+  if (chr=="chr1") {
+    autosome_df<-chr_df
+  }
+  else {
+    autosome_df<-rbind(autosome_df, chr_df)
+  }
+}
+autosome_df$Gene<-rownames(autosome_df)
+
+oneX_samples<-rownames(metaFile[metaFile$x_count==1,])
+counts_oneX<-k27me3_pcg_lcl_counts_lenNorm[,colnames(k27me3_pcg_lcl_counts_lenNorm) %in% oneX_samples]
+counts_oneX$level<-rowMeans(counts_oneX)
+
+Xa_levels<-c()
+Xa_status<-c()
+Xi_levels<-c()
+Xi_status<-c()
+genes<-c()
+for (gene in NPX_genes) {
+  if (gene %in% rownames(k27me3_lm_lenNorm)) {
+    xalevel<-counts_oneX[rownames(counts_oneX)==gene,]$level
+    xaExp<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$xaExp_lcl
+    if (xaExp=="on") {
+      xaExp<-"expressed"
+    }
+    else {
+      xaExp<-"not expressed"
+    }
+    xiLevel<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$x_his_coeff
+    xiExp<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$xciStatus_lcl
+    Xa_levels<-c(Xa_levels, xalevel)
+    Xa_status<-c(Xa_status, xaExp)
+    Xi_levels<-c(Xi_levels, xiLevel)
+    Xi_status<-c(Xi_status, xiExp)
+    genes<-c(genes,gene)
+  }
+  
+}
+
+xa_info<-data.frame(level=Xa_levels, expressionStatus=Xa_status, chr="Xa_NPX", Gene=genes)
+xi_info<-data.frame(level=Xi_levels, expressionStatus=Xi_status, chr="Xi_NPX", Gene=genes)
+
+
+oneY_samples<-rownames(metaFile[metaFile$y_count==1,])
+counts_oneY<-k27me3_pcg_lcl_counts_lenNorm[,colnames(k27me3_pcg_lcl_counts_lenNorm) %in% oneY_samples]
+counts_oneY$level<-rowMeans(counts_oneY)
+
+
+y_levels<-c()
+y_status<-c()
+genes<-c()
+
+for (gene in NPY_genes) {
+  if (gene %in% rownames(k27me3_lm_lenNorm)) {
+    level<-counts_oneY[rownames(counts_oneY)==gene,]$level
+    exp<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$expStatus_lcl
+    y_levels<-c(y_levels, level)
+    y_status<-c(y_status, exp)
+    genes<-c(genes,gene)
+  }
+}
+
+y_info<-data.frame(level=y_levels, expressionStatus=y_status, chr="NPY", Gene=genes)
+
+#Par
+xaParLevels<-c()
+xiParLevels<-c()
+yParLevels<-c()
+expStatus<-c()
+genes<-c()
+
+for (gene in PAR1_genes) {
+  xaLevel<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$intercept_his
+  xiLevel<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$x_his_coeff
+  yLevel<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$y_his_coeff
+  exp<-k27me3_lm_lenNorm[rownames(k27me3_lm_lenNorm)==gene,]$expStatus_lcl
+  
+  xaParLevels<-c(xaParLevels,xaLevel)
+  xiParLevels<-c(xiParLevels, xiLevel)
+  yParLevels<-c(yParLevels, yLevel)
+  expStatus<-c(expStatus, exp)
+  genes<-c(genes, gene)
+}
+
+xaPar<-data.frame(level=xaParLevels, expressionStatus=expStatus, chr="Xa_PAR", Gene=genes)
+xiPar<-data.frame(level=xiParLevels, expressionStatus=expStatus, chr="Xi_PAR", Gene=genes)
+yPar<-data.frame(level=yParLevels, expressionStatus=expStatus, chr="Y_PAR", Gene=genes)
+
+k27me3_allInfo<-rbind(autosome_df,xa_info,xi_info,y_info,xaPar,xiPar,yPar)
+k27me3_allInfo<-k27me3_allInfo[k27me3_allInfo$expressionStatus!="no XCI call",]
+k27me3_allInfo$expressionStatus[k27me3_allInfo$Gene=="XIST" & k27me3_allInfo$chr=="Xi_NPX"]<-"Xi-expressed"
+
+k27me3_allInfo$chr<-factor(k27me3_allInfo$chr, levels=c("Xa_PAR","Xa_NPX", "Xi_PAR", "Xi_NPX", "Y_PAR", "NPY",autosomes))
+
+p3<-ggplot(data=k27me3_allInfo[k27me3_allInfo$expressionStatus!="not expressed",], mapping = aes(x=chr, y=level))+
+  geom_boxplot(outlier.shape = NA)+theme_classic()+ylim(NA, 5)
+
+k27me3_allInfo$chrName<-as.character(k27me3_allInfo$chr)
+k27me3_allInfo$chrName[k27me3_allInfo$chrName %in% c("Xa_PAR","Xa_NPX", "Xi_PAR", "Xi_NPX")]<-"chrX"
+k27me3_allInfo$chrName[k27me3_allInfo$chrName %in% c("Y_PAR", "NPY")]<-"chrY"
+
+k27me3_allInfo$newChr<-as.character(k27me3_allInfo$chr)
+for (a in 1:nrow(k27me3_allInfo)) {
+  chrOG<-k27me3_allInfo[a,]$chrName
+  if (chrOG %in% autosomes) {
+    newChr<-substr(chrOG, 4, nchar(chrOG))
+    k27me3_allInfo$newChr[a]<-newChr
+  }
+  
+}
+
+k27me3_allInfo$newChr<-factor(k27me3_allInfo$newChr, levels=c("Xa_PAR","Xa_NPX", "Xi_PAR", "Xi_NPX", "Y_PAR", "NPY", autosomeNums))
+
+p4<-ggplot(data=k27me3_allInfo[k27me3_allInfo$expressionStatus!="not expressed",], mapping = aes(x=newChr, y=level))+
+  geom_boxplot(outlier.shape = NA)+theme_classic()+ylim(NA, 5)+xlab("Chromosome")+ylab("H3K27me3 Level Gene Body)")+
+  theme(axis.text=element_text(size=12), axis.title=element_text(size=12))
+
+
+p4.1<-ggplot(data=k27me3_allInfo[k27me3_allInfo$expressionStatus!="not expressed",], mapping = aes(x=newChr, y=level, fill=expressionStatus))+
+  geom_boxplot(outlier.shape = NA)+theme_classic()+ylim(NA, 4.5)+xlab("Chromosome")+ylab("H3K27me3 Level Gene Body)")+
+  theme(axis.text=element_text(size=12), axis.title=element_text(size=12))+scale_fill_manual(values=expColors)
+
+
+
+autosome_exp_mean<-mean(k27me3_allInfo[k27me3_allInfo$chr %in% c("Xa_PAR","Xa_NPX", "Xi_PAR","Xi_NPX","Y_PAR","NPY") ==FALSE & k27me3_allInfo$expressionStatus =="expressed",]$level)
+
+autosome_exp_median<-median(k27me3_allInfo[k27me3_allInfo$chr %in% c("Xa_PAR","Xa_NPX", "Xi_PAR","Xi_NPX","Y_PAR","NPY") ==FALSE & k27me3_allInfo$expressionStatus =="expressed",]$level)
+
+
+for (chromosome in unique(k27me3_allInfo$chr)) {
+  if (chromosome %in% c("Xi_NPX")==FALSE) {
+    chromosome_mean<-mean(k27me3_allInfo[k27me3_allInfo$chr==chromosome & k27me3_allInfo$expressionStatus=="expressed",]$level)
+    chromosome_median<-median(k27me3_allInfo[k27me3_allInfo$chr==chromosome & k27me3_allInfo$expressionStatus=="expressed",]$level)
+    if (chromosome==unique(k27me3_allInfo$chr)[1]) {
+      meanMed_k27<-data.frame(chr=chromosome, k27me3_mean=chromosome_mean,k27me3_median=chromosome_median)
+    }
+    else {
+      newDf<-data.frame(chr=chromosome,  k27me3_mean=chromosome_mean,k27me3_median=chromosome_median)
+      meanMed_k27<-rbind(meanMed_k27,newDf)
+    }
+  }
+  else {
+    Xi_npx_xiExp_mean<-mean(k27me3_allInfo[k27me3_allInfo$chr=="Xi_NPX" & k27me3_allInfo$expressionStatus=="Xi-expressed",]$level)
+    Xi_npx_xiExp_median<-median(k27me3_allInfo[k27me3_allInfo$chr=="Xi_NPX" & k27me3_allInfo$expressionStatus=="Xi-expressed",]$level)
+    
+    Xi_npx_xiSil_mean<-mean(k27me3_allInfo[k27me3_allInfo$chr=="Xi_NPX" & k27me3_allInfo$expressionStatus=="Xi-silent",]$level)
+    Xi_npx_xiSil_median<-median(k27me3_allInfo[k27me3_allInfo$chr=="Xi_NPX" & k27me3_allInfo$expressionStatus=="Xi-silent",]$level)
+    
+    xiDf<-data.frame(chr=c("Xi_NPX_Xi-Expressed", "Xi_NPX_Xi-silent"), k27me3_mean=c(Xi_npx_xiExp_mean,Xi_npx_xiSil_mean), k27me3_median=c(Xi_npx_xiExp_median,Xi_npx_xiSil_median))
+    meanMed_k27<-rbind(meanMed_k27, xiDf)
+  }
+  
+}
+
+autoDf<-data.frame(chr="all_autosomes",  k27me3_mean=autosome_exp_mean, k27me3_median=autosome_exp_median)
+meanMed_k27<-rbind(meanMed_k27, autoDf)
+
+ordrow<-match(meanMed_k27$chr, meanMed_k4$chr)
+meanMed_k4_k27<-cbind(meanMed_k4[ordrow,], meanMed_k27[,colnames(meanMed_k27) !="chr"] )
+# write.table(meanMed_k4_k27, file="k4me3_k27me3_mean_med_byChr.txt", row.names=FALSE, sep="\t", quote=FALSE)
+
+library(patchwork)
+p2.2<-p2.1+theme(axis.title.x=element_blank(), axis.line.x = element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank())
+finalFigure <- wrap_plots(list(p2.2,p4.1),ncol = 1)  
+ 
+```
+
+

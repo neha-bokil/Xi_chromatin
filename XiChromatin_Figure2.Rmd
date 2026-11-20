@@ -1,0 +1,174 @@
+---
+title: "XiChromatin_Figure2"
+output: html_notebook
+---
+
+
+
+```{r setup}
+myPath <- "path_to_github" #ADD PATH TO GITHUB FOLDER
+
+#load functions
+source(paste0(myPath, "/functions/downstreamAnalysisFunctions.R"))
+
+# import metadata
+metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+# read in relevant files
+k4me3_peaks_counts_corrected<-read.delim(paste0(myPath, "/correctedCounts/K4me3/k4me3_k4Peaks_correctedCounts.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+k4me3_meta<-metadata_all[rownames(metadata_all) %in% colnames(k4me3_peaks_counts_corrected),]
+
+k4me3_peakList<-read.delim(paste0(myPath,'/consensusPeaks/H3K4me3_consensusPeakset_SAF.txt'), check.names = FALSE, stringsAsFactors = FALSE, header = TRUE)
+annoFile<-read.delim(paste0(myPath,"/annotations/tss1000_condensed_SAF.txt"), check.names=FALSE, stringsAsFactors = FALSE, header=TRUE)
+
+#only want the protein coding genes
+annoFile_pcg<-read.delim(paste0(myPath,"/annotations/pcgSAF.txt"), check.names=FALSE,
+                         stringsAsFactors = FALSE, header=TRUE)
+annoFile<-annoFile[annoFile$Gene%in% annoFile_pcg$GeneID,]
+
+k4me3_peakListAnno<-annotatePeakFile(k4me3_peakList, annoFile)
+k4me3_peakListAnnoX<-k4me3_peakListAnno[k4me3_peakListAnno$Chr=="chrX",]
+
+k4me3_k4Peaklm_corrected<-read.delim(paste0(myPath,"/linearModeling/corrected/K4me3/k4me3_k4me3Peaks_lm_corrected.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+```
+
+# Track Plotting
+
+```{r H3K4me3 Tracks}
+suppressPackageStartupMessages(library(biomaRt)) #please note, biomaRt is no longer supported by ensembl.
+suppressPackageStartupMessages(library(trackDJ))
+trackFiles<-c("7241_XY_H3K4me3.bw","5755_XY_H3K4me3.bw","7229_XY_H3K4me3.bw", "6029_XX_H3K4me3.bw" ,"7247_XX_H3K4me3.bw","7249_XX_H3K4me3.bw","7242_XXXXY_H3K4me3.bw", "7324_XXXXY_H3K4me3.bw", "7346_XXXXY_H3K4me3.bw") # replace with paths to bigwig files
+trackNames<-c("XY_1","XY_2","XY_3","XX_1","XX_2","XX_3","XXXXY_1", "XXXXY_2","XXXXY_3")
+### Import annotation 
+
+## if using biomaRt:
+mart<-useMart("ensembl", dataset="hsapiens_gene_ensembl")
+
+## if supplying annotation file:
+# suppressPackageStartupMessages(library(GRanges))
+# annotation<-import(PATH_TO_GTF)
+
+#### Figure 2A: PRPS2
+## if using biomart
+prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  mart=mart, ymax=1.5,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=1.5,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(prps2_tracks$figure)
+
+#### Figure 2C: KDM6A
+## if using biomart
+kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  mart=mart, upDown=c(4000,2000), ymax=1.5,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  custom_anno=annotation, gene_symbol=”gene_id”, upDown=c(4000,2000), ymax=1.5,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(kdm6a_tracks$figure)
+
+#### Figure 2E: XIST
+## if using biomart
+xist_tracks<-plot_genomic_tracks(genomicLoc="XIST",  mart=mart, ymax=1.5,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# xist_tracks<-plot_genomic_tracks(genomicLoc="XIST",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=1.5,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(xist_tracks$figure)
+
+
+```
+
+# Linear modeling graphs 
+
+```{r linearModelingPlots}
+
+# Figure 2B: PRPS2
+PRPS2_k4me3_peaks<-plotgene('Peak_41652', 'X', metaFile,k4me3_peaks_counts_corrected, 'H3K4me3',-2,1000, 'black' )
+PRPS2_k4me3_peaks_line<-addLineInfo('Peak_41652',k4me3_k4Peaklm_corrected, PRPS2_k4me3_peaks )
+print(PRPS2_k4me3_peaks_line)
+
+# Figure 2D: KDM6A
+KDM6A_k4me3_peaks<-plotgene('Peak_41903', 'X', metaFile,k4me3_peaks_counts_corrected, 'H3K4me3',-2,1000, 'black' )
+KDM6A_k4me3_peaks_line<-addLineInfo("Peak_41903", k4me3_k4Peaklm_corrected,KDM6A_k4me3_peaks)
+print(KDM6A_k4me3_peaks_line)
+
+# Figure 2F: XIST
+XIST_k4me3_peaks<-plotgene('Peak_42135', 'X',metaFile,k4me3_peaks_counts_corrected, 'H3K4me3',-2,1000, 'black'  )
+XIST_k4me3_peaks_line<-addLineInfo('Peak_42135',k4me3_k4Peaklm_corrected, XIST_k4me3_peaks )
+print(XIST_k4me3_peaks_line)
+```
+
+# Compare Xi-silent vs Xi-expressed genes on Xa and Xi
+```{r silVexp}
+
+k4me3_k4Peaklm_corrected_X<-k4me3_k4Peaklm_corrected[rownames(k4me3_k4Peaklm_corrected) %in% k4me3_peakListAnnoX$PeakID,]
+k4me3_peakLm_X$PeakID<-rownames(k4me3_peakLm_X)
+
+## Assign peaks to genes
+k4me3_peakLm_X<-peakGeneMatch(k4me3_peakLm_X, k4me3_peakListAnnoX)
+
+## Add XCI status
+k4me3_peakLm_X<-expStatus(k4me3_peakLm_X)
+
+## For genes with multiple promoter peaks, take the highest one
+k4me3_peakLm_X_maxTSS<-maxTSS(k4me3_peakLm_X)
+k4me3_peakLm_X_maxTSS$xciStatus<-factor(k4me3_peakLm_X_maxTSS$xciStatus, levels=c("Xi-silent", "Xi-expressed", "not expressed", "XIST", "no XCI call"))
+xaXicolorList_k4<-c("Xa"="lightgreen", "Xi"="darkgreen")
+
+
+# Figure 2H: boxplot
+k4Peaks_xa_xi_box<-formatPlot(xa_xi_box(k4me3_peakLm_X_maxTSS,"LCL")+scale_fill_manual(values=xaXicolorList_k4)+xlab("XCI Status")+ylab("H3K4me3 Level \n (Normalized counts)"))+theme(aspect.ratio = 1)
+
+# Figure 2I: Xa v Xi scatterplot
+k4me3_peakLm_X_maxTSS$label<-NA
+k4me3_peakLm_X_maxTSS$label[k4me3_peakLm_X_maxTSS$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST")]<-k4me3_peakLm_X_maxTSS[k4me3_peakLm_X_maxTSS$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST"),]$Gene
+xcicolorList_k4<-c("Xi-silent"="yellowgreen", "Xi-expressed"="green4", "XIST"="black", "not expressed"="grey60")
+
+k4Peaks_xa_xi_scatter<-formatPlot(ggplot(data=k4me3_peakLm_X_maxTSS[k4me3_peakLm_X_maxTSS$xciStatus != "no XCI call",], mapping=aes(x=intercept_his, y=x_his_coeff, color=xciStatus, label=label))+
+                                    geom_point(size=3, alpha=0.7)+scale_color_manual(values=xcicolorList_k4)+theme_classic()+
+                                    xlim(-15,300)+ylim(-15,300)+xlab("H3K4me3 Level on Xa")+ylab("H3K4me3 Level on Xi")+
+                                    geom_abline(intercept = 0, slope = 1, linetype="dashed", size=1)+theme(aspect.ratio = 1)+
+                                    geom_label_repel(alpha=0.7))
+
+# Figure 2J: deltaK4me3.x violin plot 
+k4me3_peakLm_X_summed<-sumPeaksbyGene(k4me3_peakLm_X)
+k4me3_peakLm_X_summed$deltak4me3.x<-k4me3_peakLm_X_summed$x_his_coeff/k4me3_peakLm_X_summed$intercept_his
+k4me3_peakLm_X_summed$deltak4me3.x_err<-sqrt((((k4me3_peakLm_X_summed$x_his_coeff)^2)/((k4me3_peakLm_X_summed$intercept_his)^2))*(((k4me3_peakLm_X_summed$x_his_coeff_err^2))/(k4me3_peakLm_X_summed$x_his_coeff^2) +(k4me3_peakLm_X_summed$intercept_his_err^2/k4me3_peakLm_X_summed$intercept_his^2)))
+
+
+xist_int<-k4me3_peakLm_X_summed[k4me3_peakLm_X_summed$Gene=="XIST",]$intercept_his
+xist_slope<-k4me3_peakLm_X_summed[k4me3_peakLm_X_summed$Gene=="XIST",]$x_his_coeff
+
+k4me3_peakLm_X_summed$deltak4me3.x[k4me3_peakLm_X_summed$Gene=="XIST"]<-xist_slope/(xist_int+xist_slope)
+k4me3_peakLm_X_summed$xciStatus<-factor(k4me3_peakLm_X_summed$xciStatus, levels=c("Xi-silent", "Xi-expressed", "not expressed", "XIST", "no XCI call"))
+xcicolorList_k4<-c("Xi-silent"="yellowgreen", "Xi-expressed"="green4", "XIST"="black", "not expressed"="grey60")
+
+dk4me3_peak_vio<-formatPlot(ggplot(data=k4me3_peakLm_X_summed[k4me3_peakLm_X_summed$xciStatus != "no XCI call",], mapping=aes(x=xciStatus, y=deltak4me3.x, fill=xciStatus))+geom_violin(trim=FALSE)+geom_boxplot(width=0.03, fill="white", outlier.shape = NA)+
+                              scale_fill_manual(values=xcicolorList_k4)+theme_classic()+scale_color_manual(values=xcicolorList_k4)+xlab("XCI Status"))+theme(aspect.ratio=1)
+
+# Figure 2K: deltaK4me3.x vs deltaEx scatter plot
+
+k4me3_peakLm_X_summed$label<-NA
+k4me3_peakLm_X_summed$label[k4me3_peakLm_X_summed$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST")]<-k4me3_peakLm_X_summed[k4me3_peakLm_X_summed$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST"),]$Gene
+k4me3_peakLm_X_summed_exp<-k4me3_peakLm_X_summed[k4me3_peakLm_X_summed$expStatus=="expressed",]
+
+RegioncolorList_k4<-c("PAR1"="aquamarine3", "NPX"="green4", "PAR2"="grey60")
+
+expVk4me3_scatter<-formatPlot(ggplot(data=k4me3_peakLm_X_summed_exp[k4me3_peakLm_X_summed_exp$xciStatus=="Xi-expressed",], mapping=aes(x=deltak4me3.x, y=deltaEx, label=label))+geom_point(size=4, alpha=0.7, aes(color=region))+
+  scale_color_manual(values=RegioncolorList_k4)+theme_classic()+geom_smooth(method="lm", linetype="dashed", size=1, color="black")+geom_text_repel(aes(color=region))+
+    xlab("deltaH3K4me3.x")+ylab("deltaEx"))+theme(aspect.ratio = 1)
+
+```
+
+
+

@@ -1,0 +1,150 @@
+---
+title: "XiChromatin_Figure4"
+output: html_notebook
+---
+
+
+
+```{r setup}
+myPath <- "path_to_github" #ADD PATH TO GITHUB FOLDER
+
+#load functions
+source(paste0(myPath, "/functions/downstreamAnalysisFunctions.R"))
+
+# import metadata
+metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+# read in relevant files
+ctcf_peaks_counts_corrected<-read.delim(paste0(myPath, "/correctedCounts/CTCF/ctcf_ctcfPeaks_correctedCounts.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+ctcf_meta<-metadata_all[rownames(metadata_all) %in% colnames(ctcf_peaks_counts_corrected),]
+
+ctcf_peakList<-read.delim(paste0(myPath,'/consensusPeaks/CTCF_consensusPeakset_SAF.txt'), check.names = FALSE, stringsAsFactors = FALSE, header = TRUE)
+annoFile<-read.delim(paste0(myPath,"/annotations/tss1000_condensed_SAF.txt"), check.names=FALSE, stringsAsFactors = FALSE, header=TRUE)
+
+#only want the protein coding genes
+annoFile_pcg<-read.delim(paste0(myPath,"/annotations/pcgSAF.txt"), check.names=FALSE,
+                         stringsAsFactors = FALSE, header=TRUE)
+annoFile<-annoFile[annoFile$Gene%in% annoFile_pcg$GeneID,]
+
+ctcf_peakListAnno<-annotatePeakFile(ctcf_peakList, annoFile)
+ctcf_peakListAnnoX<-ctcf_peakListAnno[ctcf_peakListAnno$Chr=="chrX",]
+
+ctcf_ctcfPeaklm_corrected<-read.delim(paste0(myPath,"/linearModeling/corrected/CTCF/ctcf_ctcfPeaks_lm_corrected.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+```
+
+
+# Track Plotting
+
+```{r CTCF Tracks}
+suppressPackageStartupMessages(library(biomaRt)) #please note, biomaRt is no longer supported by ensembl.
+suppressPackageStartupMessages(library(trackDJ))
+trackFiles<-c("7241_XY_CTCF.bw","5755_XY_CTCF.bw","7229_XY_CTCF.bw", "6029_XX_CTCF.bw" ,"7247_XX_CTCF.bw","7249_XX_CTCF.bw","7242_XXXXY_CTCF.bw", "7324_XXXXY_CTCF.bw", "7346_XXXXY_CTCF.bw") # replace with paths to bigwig files
+trackNames<-c("XY_1","XY_2","XY_3","XX_1","XX_2","XX_3","XXXXY_1", "XXXXY_2","XXXXY_3")
+### Import annotation 
+
+## if using biomaRt:
+mart<-useMart("ensembl", dataset="hsapiens_gene_ensembl")
+
+## if supplying annotation file:
+# suppressPackageStartupMessages(library(GRanges))
+# annotation<-import(PATH_TO_GTF)
+
+#### Figure 4A: PRPS2
+## if using biomart
+prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  mart=mart, ymax=1,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=1,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(prps2_tracks$figure)
+
+#### Figure 4C: KDM6A
+## if using biomart
+kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  mart=mart, upDown=c(4000,2000), ymax=1,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  custom_anno=annotation, gene_symbol=”gene_id”, upDown=c(4000,2000), ymax=1,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(kdm6a_tracks$figure)
+
+
+```
+
+
+
+# Linear modeling graphs 
+
+```{r linearModelingPlots}
+
+#For PRPS2, need promoter levels rather than peak (there is no promoter peak for PRPS2)
+
+ctcf_promoter_lcl_counts_corrected<-read.delim(paste0(myPath, "/correctedCounts/CTCF/ctcf_tss1000_correctedCounts.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+ctcf_promoterLm_corrected<-read.delim(paste0(myPath,"/linearModeling/corrected/CTCF/ctcf_tss1000_lm_corrected.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+ctcf_promoterLm_maxTSS<-maxTSS(ctcf_promoterLm_corrected)
+
+# Figure 4B: PRPS2
+PRPS2_ctcf_lcl_promoter<-plotgene('PRPS2_1', 'X', metaFile,ctcf_promoter_lcl_counts_corrected, 'CTCF',0,80, 'blue' )
+PRPS2_ctcf_lcl_promoter_line<-addLineInfo('PRPS2',ctcf_promoterLm_maxTSS, PRPS2_ctcf_lcl_promoter )
+print(PRPS2_ctcf_peaks_line)
+
+# Figure 4D: KDM6A
+KDM6A_ctcf_peaks<-plotgene('Peak_32889', 'X', metaFile,ctcf_peaks_counts_corrected, 'CTCF',0,80, 'black' )
+KDM6A_ctcf_peaks_line<-addLineInfo("Peak_32889", ctcf_ctcfPeaklm_corrected,KDM6A_ctcf_peaks)
+print(KDM6A_ctcf_peaks_line)
+
+
+```
+
+# Compare Xi-silent vs Xi-expressed genes on Xa and Xi
+```{r silVexp}
+ctcf_peakLm_X$PeakID<-rownames(ctcf_peakLm_X)
+ctcf_peakLm_X<-peakGeneMatch(ctcf_peakLm_X, ctcf_peakListAnnoX)
+ctcf_peakLm_X<-expStatus(ctcf_peakLm_X)
+
+
+ctcf_peakLm_X_maxTSS<-maxTSS(ctcf_peakLm_X)
+ctcf_peakLm_X_maxTSS$xciStatus_lcl<-factor(ctcf_peakLm_X_maxTSS$xciStatus_lcl, levels=c("Xi-silent", "Xi-expressed", "not expressed", "XIST", "no XCI call"))
+xaXicolorList_ctcf<-c("Xi-silent"="navyblue", "Xi-expressed"="lightblue", "XIST"="black", "not expressed"="grey60")
+
+# Figure 4E: boxplot
+ctcfPeaks_xa_xi_box<-formatPlot(xa_xi_box(ctcf_peakLm_X_maxTSS,"LCL")+scale_fill_manual(values=xaXicolorList_ctcf)+xlab("XCI Status")+ylab("CTCF Level \n (Normalized counts)"))+theme(aspect.ratio = 1)+ylim(NA,40)
+
+# Figure 4F: Xa v Xi scatterplot
+ctcf_peakLm_X_maxTSS$label<-NA
+ctcf_peakLm_X_maxTSS$label[ctcf_peakLm_X_maxTSS$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST")]<-ctcf_peakLm_X_maxTSS[ctcf_peakLm_X_maxTSS$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST"),]$Gene
+
+ctcf_xa_xi_scatter<-formatPlot(ggplot(data=ctcf_peakLm_X_maxTSS[ctcf_peakLm_X_maxTSS$xciStatus %in% c("no XCI call", "none") ==FALSE,], mapping=aes(x=intercept_ctcf_corrected, y=x_coeff_ctcf_corrected, color=xciStatus, label=label))+
+                                 geom_point(size=3, alpha=0.7)+scale_color_manual(values=xcicolorList_ctcf)+theme_classic()+
+                                 xlab("CTCF Level on Xa")+ylab("CTCF Level on Xi")+
+                                 geom_abline(intercept = 0, slope = 1, linetype="dashed", size=1)+theme(aspect.ratio = 1)+
+                                 geom_label_repel(alpha=0.7))+xlim(-2.5,50)+ylim(-2.5,50)
+
+# Figure 4I: deltaCTCF.x violin plot
+ctcf_peakLm_X_summed<-sumPeaksbyGene(ctcf_peakLm_X)
+
+ctcf_peakLm_X_summed$deltactcf.x<-ctcf_peakLm_X_summed$x_his_coeff/ctcf_peakLm_X_summed$intercept_his
+ctcf_peakLm_X_summed$deltactcf.x_err<-sqrt((((ctcf_peakLm_X_summed$x_his_coeff)^2)/((ctcf_peakLm_X_summed$intercept_his)^2))*(((ctcf_peakLm_X_summed$x_his_coeff_err^2))/(ctcf_peakLm_X_summed$x_his_coeff^2) +(ctcf_peakLm_X_summed$intercept_his_err^2/ctcf_peakLm_X_summed$intercept_his^2)))
+
+
+xist_int<-ctcf_peakLm_X_summed[ctcf_peakLm_X_summed$Gene=="XIST",]$intercept_his
+xist_slope<-ctcf_peakLm_X_summed[ctcf_peakLm_X_summed$Gene=="XIST",]$x_his_coeff
+
+ctcf_peakLm_X_summed$deltactcf.x[ctcf_peakLm_X_summed$Gene=="XIST"]<-xist_slope/(xist_int+xist_slope)
+ctcf_peakLm_X_summed$xciStatus_lcl<-factor(ctcf_peakLm_X_summed$xciStatus_lcl, levels=c("Xi-silent", "Xi-expressed", "not expressed", "XIST", "no XCI call"))
+
+
+dctcf_peak_vio<-formatPlot(ggplot(data=ctcf_peakLm_X_summed[ctcf_peakLm_X_summed$xciStatus_lcl != "no XCI call",], mapping=aes(x=xciStatus_lcl, y=deltactcf.x, fill=xciStatus_lcl))+geom_violin(trim=FALSE)+geom_boxplot(width=0.03, fill="white", outlier.shape = NA)+
+                              scale_fill_manual(values=xcicolorList_ctcf)+theme_classic()+scale_color_manual(values=xcicolorList_ctcf)+xlab("XCI Status"))+theme(aspect.ratio=1)
+```
+
+
+
+
+

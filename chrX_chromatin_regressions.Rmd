@@ -1,0 +1,276 @@
+---
+title: "Modeling X Chromosome Chromatin"
+output: html_notebook
+---
+
+
+# Setup
+```{r setup}
+myPath <- "path_to_github" #ADD PATH TO GITHUB FOLDER
+
+#import linear modeling functions
+source(paste0(myPath,"/functions/linearModelingFunctions.R"))
+
+```
+
+# Data processing
+```{r dataProcessing, eval=FALSE}
+#### The following code is used to run this analysis from the raw data. Skip below to begin with the provided processed data file. ####
+
+### download the fastq files and map with bowtie2 using the command:
+# bowtie2 -x PATH_TO_GENOME -1 fastq1.gz -2 fastq2.gz --local --very-sensitive-local --no-unal --no-mixed --no-discordant --phred33 -I 10 -X 700 -S OUTPUT_FOLDER/SAMPLE_NAME.sam
+
+### call CTCF and H3K4me3 using the command:
+# macs2 callpeak -B -t EXPERIMENTAL_SAMPLE.BAM -c IGG_CONTROL.BAM --name SAMPLE_NAME --nomodel --extsize 185 -f BAMPE -g hs
+
+### call H3K27me3 peaks using the command:
+# macs2 callpeak -B -t EXPERIMENTAL_SAMPLE.BAM -c IGG_CONTROL.BAM --name SAMPLE_NAME --nomodel --extsize 185 -f BAMPE -g hs --broad
+
+### generate the consensus peak set. bedtools is run via the command line (bash); other steps are in R. CTCF and H3K4me3 files from macs2 end with .narrowPeak; H3K27me3 will be .broadPeak
+
+## bash
+
+# cat XY_PEAKS_1.narrowPeak XY_PEAKS_2.narrowPeak XY_PEAKS_3.narrowPeak > XY_combined.narrowPeak
+# cat XX_PEAKS_1.narrowPeak XX_PEAKS_2.narrowPeak XX_PEAKS_3.narrowPeak > XX_combined.narrowPeak
+# cat XXXXY_PEAKS_1.narrowPeak XXXXY_PEAKS_2.narrowPeak XXXXY_PEAKS_3.narrowPeak > XXXXY_combined.narrowPeak
+
+# bedtools sort -i XY_combined.narrowPeak > XY_combined_sorted.narrowPeak
+# bedtools sort -i XX_combined.narrowPeak > XX_combined_sorted.narrowPeak
+# bedtools sort -i XXXXY_combined.narrowPeak > XXXXY_combined_sorted.narrowPeak
+
+# bedtools merge -i XY_combined_sorted.narrowPeak -c 1 -o count > XY_combined_sorted_merged.narrowPeak
+# bedtools merge -i XX_combined_sorted.narrowPeak -c 1 -o count > XX_combined_sorted_merged.narrowPeak
+# bedtools merge -i XXXXY_combined_sorted.narrowPeak -c 1 -o count > XXXXY_combined_sorted_merged.narrowPeak
+
+## R
+# xy<-read.delim("XY_combined_sorted_merged.narrowPeak, check.names=FALSE, stringsAsFactors = FALSE, header=FALSE)
+# xy_filt<-xy[xy$V4>1,]
+# write.table(xy_filt, file="XY_commonPeaks.bed", sep="\t", row.names = FALSE, col.names=FALSE, quote=FALSE)
+
+# xx<-read.delim("XX_combined_sorted_merged.narrowPeak", check.names=FALSE, stringsAsFactors = FALSE, header=FALSE)
+# xx_filt<-xx[xx$V4>1,]
+# write.table(xx_filt, file="XX_commonPeaks.bed", sep="\t", row.names = FALSE, col.names=FALSE, quote=FALSE)
+
+# xxxxy<-read.delim("XXXXY_combined_sorted_merged.narrowPeak", check.names=FALSE, stringsAsFactors = FALSE, header=FALSE)
+# xxxxy_filt<-xxxxy[xxxxy$V4>1,]
+# write.table(xxxxy_filt, file="XXXXY_commonPeaks.bed", sep="\t", row.names = FALSE, col.names=FALSE, quote=FALSE)
+
+## bash
+# cat XY_commonPeaks.bed XX_commonPeaks.bed XXXXY_commonPeaks.bed > commonPeaks_all.bed
+# bedtools sort -i commonPeaks_all.bed > commonPeaks_all_sorted.bed
+# bedtools merge -i commonPeaks_all_sorted.bed -d 150 > consensusPeakset.bed
+
+## R
+# peaks<-read.delim("consensusPeakset.bed", check.names=FALSE, stringsAsFactors = FALSE, header=FALSE)
+# colnames(peaks)<-c("Chr", "Start", "End")
+# peaks$Strand<-"+" #dummy for SAF file
+# peaks$rowNum<-1:nrow(peaks)
+# peaks$GeneID<-paste0("Peak_", as.character(peaks$rowNum))
+
+# peaks<-peaks[,c("GeneID", "Chr", "Start", "End", "Strand")]
+# write.table(peaks, file="consensusPeakset_SAF.txt", sep="\t", row.names=FALSE, col.names=TRUE, quote=FALSE)
+# write.table(peaks[,c("Chr", "Start", "End", "GeneID")], file="consensusPeakset_named.bed", sep="\t", row.names=FALSE, col.names=FALSE, quote=FALSE)
+
+### generate coverage tracks using the following command in deepTools
+# bamCoverage --bam SAMPLE.BAM -o SAMPLE.bw --binSize 10 --normalizeUsing CPM --ignoreForNormalization chrX chrY chrM --extendReads --ignoreDuplicates
+
+### count autosomal reads in each BAM file using the following command:
+# samtools view -c -f 2 -F 2432 SAMPLE.BAM  chr1 chr2 chr3 chr4 chr5 chr6 chr7 chr8 chr9 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19 chr20 chr21 chr22 > SAMPLE_AUTOSOMAL_COUNTS.TXT
+
+### run featureCounts over regions of interest (R). REGION_FILE should be in SAF format and could be gene bodies, consensus peaks, promoters, etc. 
+# suppressPackageStartupMessages(library(Rsubread))
+# b<-featureCounts(files=readLines(TXT_FILE_BAM_PATHS_LIST.TXT),annot.ext=REGION_FILE.SAF, allowMultiOverlap=TRUE, isPairedEnd = TRUE, requireBothEndsMapped = TRUE, maxFragLength=2000, countChimericFragments = FALSE, autosort=TRUE)
+# write.table(x=data.frame(b$annotation[,'GeneID'],b$counts,stringsAsFactors=FALSE, check.names=FALSE), file=COUNTS_FILE.TXT, quote=FALSE,sep="\t",row.names=FALSE)
+
+### some samples have multiple replicates in this case, add the counts together (R). Note that the METADATA_UNCOMBINED.TXT metadata file provided should have unique sample names in the first column (matching their sample names in the counts file from featureCounts!), autosomal read counts for each sample in a column called AutosomalReads, and a column called ID (samples of the same ID will be combined). 
+# source(paste0(myPath,"/Scripts/processingFunctions.R"))
+# metaData<-read.delim(METADATA_UNCOMBINED.TXT, check.names=FALSE, stringsAsFactors=FALSE, row.names=1)
+# counts<-read.deim(COUNTS_FILE.TXT, check.names=FALSE, stringsAsFactors=FALSE, row.names=1)
+# combined_samples<-combineReplicates(metaData, counts)
+# write.table(combined_samples[1][[1]], file='metadata_combined.txt', sep='\t', quote=FALSE, row.names = TRUE)
+# write.table(combined_samples[2][[1]], file="counts_combined.txt, sep="\t, quote=FALSE, row.names=TRUE)
+
+### run DESEQ on counts_combined.txt file. Note that if there is only one sequencing batch, #SequencingBatch should be removed from the design
+# suppressPackageStartupMessages(library(DESeq2))
+# source(paste0(myPath,"/Scripts/processingFunctions.R"))
+# expdata<-read.delim(COUNTS_COMBINED.TXT ,check.names=FALSE, stringsAsFactors = FALSE, row.names=1)
+# expmeta<-read.delim(METADATA_COMBINED.TXT, check.names=FALSE, stringsAsFactors=FALSE, row.names=1)
+# expmeta$SequencingBatch<-factor(expmeta$SequencingBatch)
+# deseqRes<-to_run_deseq(expdata, expmeta, OUTPUT_PREFIX)
+
+```
+
+# Linear Modeling 
+```{r linearModeling}
+#### START HERE WITH PROCESSED NORMALIZED COUNTS DATA ####
+
+# get metadata for all marks
+metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+k27me3_meta<-metadata_all[metadata_all$Mark=="H3K27me3",]
+k4me3_meta<-metadata_all[metadata_all$Mark=="H3K4me3",]
+ctcf_meta<-metadata_all[metadata_all$Mark=="CTCF",]
+migg_meta<-metadata_all[metadata_all$Mark=="mIgG3",]
+prigg_meta<-metadata_all[metadata_all$Mark=="pRIgG",]
+
+# H3K4me3 over promoter regions
+k4me3_tss1000_normcounts<-read.delim(paste0(myPath,'/deseq2/K4me3/k4me3_tss1000_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+k4me3_tss1000_lm<-to_run_lmanalysis(k4me3_tss1000_normcounts,k4me3_meta, selectXY=TRUE)
+write.table(k4me3_tss1000_lm, file=paste0(myPath,'/linearModeling/raw/K4me3/k4me3_tss1000_lm.txt'),sep='\t',  quote=FALSE, row.names=TRUE)
+
+# H3K4me3 over consensus peak set (sex chromosome peaks only)
+k4me3_allPeaks<-read.delim(paste0(myPath,'/consensusPeaks/H3K4me3_consensusPeakset_SAF.txt'), check.names=FALSE, stringsAsFactors = FALSE, row.names=1)
+k4me3_XYPeaks_df<-k4me3_allPeaks[k4me3_allPeaks$Chr=="chrX" | k4me3_allPeaks$Chr=="chrY",]
+k4me3_XYPeaks_df$Location<-NA
+k4me3_XYPeaks_df$Location[k4me3_XYPeaks_df$Start < 2781479]<-"PAR1"
+k4me3_XYPeaks_df$Location[k4me3_XYPeaks_df$End > 155701383 & k4me3_XYPeaks_df$Chr=="chrX"]<-"PAR2"
+k4me3_XYPeaks_df$Location[k4me3_XYPeaks_df$End > 56887903 & k4me3_XYPeaks_df$Chr=="chrY"]<-"PAR2"
+k4me3_XYPeaks_df$Location[k4me3_XYPeaks_df$Start >= 2781479 & k4me3_XYPeaks_df$End <= 155701383 & k4me3_XYPeaks_df$Chr=="chrX"]<-"NPX"
+k4me3_XYPeaks_df$Location[k4me3_XYPeaks_df$Start >= 2781479 & k4me3_XYPeaks_df$End <= 56887903  & k4me3_XYPeaks_df$Chr=="chrY"]<-"NPY"
+k4me3_XYPeaks_df$region<-rownames(k4me3_XYPeaks_df)
+k4me3_XYPeaks<-rownames(k4me3_XYPeaks_df)
+
+k4me3_k4Peaks_normcounts<-read.delim(paste0(myPath,'/deseq2/K4me3/k4me3_k4Peaks_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+k4me3_k4Peaks_normcounts_xy<-k4me3_k4Peaks_normcounts[rownames(k4me3_k4Peaks_normcounts) %in%k4me3_XYPeaks,]
+k4me3_k4Peaks_lm<-to_run_lmanalysis(k4me3_k4Peaks_normcounts_xy,k4me3_meta, selectXY=FALSE)
+write.table(k4me3_k4Peaks_lm, file=paste0(myPath,'/linearModeling/raw/K4me3/k4me3_k4me3Peaks_lm.txt'),sep='\t',  quote=FALSE, row.names=TRUE)
+
+# H3K4me3 over 1kb segments of chrX
+k4me3_chrX1kb_normcounts<-read.delim(paste0(myPath,'/deseq2/K4me3/k4me3_chrX1kb_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+k4me3_chrX1kb_lm<-to_run_lmanalysis(k4me3_chrX1kb_normcounts,k4me3_meta, selectXY=FALSE)
+write.table(k4me3_chrX1kb_lm, file=paste0(myPath,'/linearModeling/raw/K4me3/k4me3_chrX1kb_lm.txt'), sep='\t', quote=FALSE, row.names=TRUE)
+
+# H3K27me3 over bodies of protein coding genes
+k27me3_pcg_normcounts<-read.delim(paste0(myPath,'/deseq2/K27me3/k27me3_pcg_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+k27me3_pcg_lm<-to_run_lmanalysis(k27me3_pcg_normcounts,k27me3_meta, selectXY=TRUE)
+write.table(k27me3_pcg_lm, file=paste0(myPath,'/linearModeling/raw/K27me3/k27me3_pcg_lm.txt'), sep='\t', quote=FALSE, row.names=TRUE)
+
+# H3K27me3 over consensus peak set (sex chromosome peaks only)
+k27me3_k27me3peaks_normcounts<-read.delim(paste0(myPath,'/deseq2/K27me3/k27me3_k27me3peaks_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+k27me3_k27me3peaks_lm<-to_run_lmanalysis(k27me3_k27me3peaks_normcounts,k27me3_meta, selectXY=TRUE)
+write.table(k27me3_k27me3peaks_lm, file=paste0(myPath,'/linearModeling/raw/K27me3/k27me3_k27me3peaks_lm.txt'), sep='\t', quote=FALSE, row.names=TRUE)
+
+# H3K27me3 over 1 kb segments of chrX
+k27me3_chrX1kb_normcounts<-read.delim(paste0(myPath,'/deseq2/K27me3/k27me3_chrX1kb_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+k27me3_chrX1kb_lm<-to_run_lmanalysis(k27me3_chrX1kb_normcounts,k27me3_meta, selectXY=FALSE)
+write.table(k27me3_chrX1kb_lm, file=paste0(myPath,'/linearModeling/raw/K27me3/k27me3_chrX1kb_lm.txt'), sep='\t', quote=FALSE, row.names=TRUE)
+
+# CTCF over promoter regions
+ctcf_tss1000_normcounts<-read.delim(paste0(myPath,'/deseq2/CTCF/ctcf_tss1000_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+ctcf_tss1000_lm<-to_run_lmanalysis(ctcf_tss1000_normcounts,ctcf_meta, selectXY=TRUE)
+write.table(ctcf_tss1000_lm, file=paste0(myPath,'/linearModeling/raw/CTCF/ctcf_tss1000_lm.txt'),sep='\t',  quote=FALSE, row.names=TRUE)
+
+# CTCF over consensus peak set (sex chromosome peaks only)
+ctcf_allPeaks<-read.delim(paste0(myPath,'/consensusPeaks/CTCF_consensusPeakset_SAF.txt'), check.names=FALSE, stringsAsFactors = FALSE, row.names=1)
+ctcf_XYPeaks_df<-ctcf_allPeaks[ctcf_allPeaks$Chr=="chrX" | ctcf_allPeaks$Chr=="chrY",]
+ctcf_XYPeaks_df$Location<-NA
+ctcf_XYPeaks_df$Location[ctcf_XYPeaks_df$Start < 2781479]<-"PAR1"
+ctcf_XYPeaks_df$Location[ctcf_XYPeaks_df$End > 155701383 & ctcf_XYPeaks_df$Chr=="chrX"]<-"PAR2"
+ctcf_XYPeaks_df$Location[ctcf_XYPeaks_df$End > 56887903 & ctcf_XYPeaks_df$Chr=="chrY"]<-"PAR2"
+ctcf_XYPeaks_df$Location[ctcf_XYPeaks_df$Start >= 2781479 & ctcf_XYPeaks_df$End <= 155701383 & ctcf_XYPeaks_df$Chr=="chrX"]<-"NPX"
+ctcf_XYPeaks_df$Location[ctcf_XYPeaks_df$Start >= 2781479 & ctcf_XYPeaks_df$End <= 56887903  & ctcf_XYPeaks_df$Chr=="chrY"]<-"NPY"
+ctcf_XYPeaks_df$region<-rownames(ctcf_XYPeaks_df)
+ctcf_XYPeaks<-rownames(ctcf_XYPeaks_df)
+
+ctcf_ctcfPeaks_normcounts<-read.delim(paste0(myPath,'/deseq2/CTCF/ctcf_ctcfPeaks_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+ctcf_ctcfPeaks_normcounts_xy<-ctcf_ctcfPeaks_normcounts[rownames(ctcf_ctcfPeaks_normcounts) %in%ctcf_XYPeaks,]
+ctcf_ctcfPeaks_lm<-to_run_lmanalysis(ctcf_ctcfPeaks_normcounts_xy,ctcf_meta, selectXY=FALSE)
+
+write.table(ctcf_ctcfPeaks_lm, file=paste0(myPath,'/linearModeling/raw/CTCF/ctcf_ctcfPeaks_lm.txt'),sep='\t',  quote=FALSE, row.names=TRUE)
+
+# CTCF over 1kb segments of chrX
+ctcf_chrX1kb_normcounts<-read.delim(paste0(myPath,'/deseq2/CTCF/ctcf_chrX1kb_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+ctcf_chrX1kb_lm<-to_run_lmanalysis(ctcf_chrX1kb_normcounts,ctcf_meta, selectXY=FALSE)
+write.table(ctcf_chrX1kb_lm, file=paste0(myPath,'/linearModeling/raw/CTCF/ctcf_chrX1kb_lm.txt'), sep='\t', quote=FALSE, row.names=TRUE)
+
+# mIgG3 over gene bodies
+# mIgG3 over 1kb segments of chrX
+
+# pRIgG over k4me3 peaks
+# pRIgG over promoters
+# pRIgG over CTCF peaks
+# pRIgG over 1kb segments of chrX
+
+```
+
+
+#Correct linear modeling and counts for IgG background
+```{r igg correction}
+
+##correct linear modeling results
+k4me3_lmFiles<-data.frame(Sample=c(paste0(myPath,"/linearModeling/raw/K4me3/k4me3_k4me3Peaks_lm.txt"), 
+                                   paste0(myPath, "/linearModeling/raw/K4me3/k4me3_tss1000_lm.txt")),
+                          IgG=c(paste0(myPath,"/linearModeling/raw/pRIgG/prigg_k4me3Peaks_lm.txt"),
+                                paste0(myPath,"/linearModeling/raw/pRIgG/prigg_tss1000_lm.txt")),
+                          Name=c(paste0(myPath,"/linearModeling/corrected/K4me3/k4me3_k4me3Peaks_lm_corrected.txt"),
+                                 paste0(myPath,"/linearModeling/corrected/K4me3/k4me3_tss1000_lm_corrected.txt")))
+
+k27me3_lmFiles<-data.frame(Sample=c(paste0(myPath,"/linearModeling/raw/K27me3/k27me3_pcg_lm.txt")),
+                          IgG=c(paste0(myPath,"/linearModeling/raw/mIgG3/prigg_k27me3Peaks_lm.txt")),
+                          Name=c(paste0(myPath,"/linearModeling/corrected/K27me3/k27me3_pcg_lm_corrected.txt")))
+
+ctcf_lmFiles<-data.frame(Sample=c(paste0(myPath,"/linearModeling/raw/CTCF/ctcf_ctcfPeaks_lm.txt"), 
+                                   paste0(myPath, "/linearModeling/raw/CTCF/ctcf_tss1000_lm.txt")),
+                          IgG=c(paste0(myPath,"/linearModeling/raw/pRIgG/priggc_ctcfPeaks_lm.txt"),
+                                paste0(myPath,"/linearModeling/raw/pRIgG/priggc_tss1000_lm.txt")),
+                          Name=c(paste0(myPath,"/linearModeling/corrected/CTCF/ctcf_ctcfPeaks_lm_corrected.txt"),
+                                 paste0(myPath,"/linearModeling/corrected/CTCF/ctcf_tss1000_lm_corrected.txt")))
+
+
+k4me3_new<-correctLM(k4me3_lmFiles, 0.391)
+k27me3_new<-correctLM(k27me3_lmFiles,0.108)
+ctcf_new<-correctLM(ctcf_lmFiles,0.418)
+
+##correct counts files
+metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+k27me3_meta<-metadata_all[metadata_all$Mark=="H3K27me3",]
+k4me3_meta<-metadata_all[metadata_all$Mark=="H3K4me3",]
+ctcf_meta<-metadata_all[metadata_all$Mark=="CTCF",]
+migg_meta<-metadata_all[metadata_all$Mark=="mIgG3",]
+prigg_meta<-metadata_all[metadata_all$Mark=="pRIgG",]
+
+#K4me3
+k4me3_k4Peaks_normcounts<-read.delim(paste0(myPath,'/deseq2/K4me3/k4me3_k4Peaks_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+prigg_k4Peaks_normcounts<-read.delim(paste0(myPath,"/deseq2/pRIgG/prigg_k4Peaks_normalizedcounts.txt"), row.names=1, check.names=FALSE, stringsAsFactors=FALSE)
+k4me3_k4Peaks_counts_corrected<-getCorrectedCounts(k4me3_k4Peaks_normcounts, k4me3_meta, prigg_k4Peaks_normcounts, prigg_meta, scaleIgG=0.391)
+write.table(k4me3_k4Peaks_counts_corrected, file=paste0(myPath,"/correctedCounts/K4me3/k4me3_k4Peaks_correctedCounts.txt"),sep='\t', quote=FALSE,row.names=TRUE)
+
+k4me3_tss1000_normcounts<-read.delim(paste0(myPath,'/deseq2/K4me3/k4me3_tss1000_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+prigg_tss1000_normcounts<-read.delim(paste0(myPath,"deseq2/pRIgG/prigg_tss1000_normalizedcounts.txt"), row.names=1, check.names=FALSE, stringsAsFactors=FALSE)
+k4me3_tss1000_counts_corrected<-getCorrectedCounts(k4me3_tss1000_normcounts, k4me3_meta, prigg_tss1000_normcounts, prigg_meta, scaleIgG=0.391)
+write.table(k4me3_tss1000_counts_corrected, file=paste0(myPath,"/correctedCounts/K4me3/k4me3_tss1000_correctedCounts.txt"),sep='\t', quote=FALSE,row.names=TRUE)
+
+#K27me3
+k27me3_pcg_normcounts<-read.delim(paste0(myPath,'/deseq2/K27me3/k27me3_pcg_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+migg_pcg_normcounts<-read.delim(paste0(myPath,'/deseq2/mIgG3/migg_pcg_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+k27me3_pcg_lcl_counts_corrected<-getCorrectedCounts(k27me3_pcg_normcounts, k27me3_meta, migg_pcg_normcounts, migg_meta, scaleIgG=0.108)
+write.table(k27me3_pcg_lcl_counts_corrected, file=paste0(myPath,"/correctedCounts/K27me3/k27me3_pcg_correctedCounts.txt"),sep='\t', quote=FALSE,row.names=TRUE)
+
+#CTCF
+ctcf_ctcfPeaks_normcounts<-read.delim(paste0(myPath,'/deseq2/CTCF/ctcf_ctcfPeaks_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+prigg_ctcfPeaks_normcounts<-read.delim(paste0(myPath,"/deseq2/pRIgG/prigg_ctcfPeaks_normalizedcounts.txt"), row.names=1, check.names=FALSE, stringsAsFactors=FALSE)
+ctcf_ctcfPeaks_counts_corrected<-getCorrectedCounts(ctcf_ctcfPeaks_normcounts, ctcf_meta, prigg_ctcfPeaks_normcounts, prigg_meta, scaleIgG=0.418)
+write.table(ctcf_ctcfPeaks_counts_corrected, file=paste0(myPath,"/correctedCounts/CTCF/ctcf_ctcfPeaks_correctedCounts.txt"),sep='\t', quote=FALSE,row.names=TRUE)
+
+
+ctcf_tss1000_normcounts<-read.delim(paste0(myPath,'/deseq2/CTCF/ctcf_tss1000_normalizedcounts.txt'), row.names=1, check.names=FALSE, stringsAsFactors = FALSE)
+prigg_tss1000_normcounts<-read.delim(paste0(myPath,"/deseq2/pRIgG/prigg_tss1000_normalizedcounts.txt"), row.names=1, check.names=FALSE, stringsAsFactors=FALSE)
+ctcf_tss1000_counts_corrected<-getCorrectedCounts(ctcf_tss1000_normcounts, ctcf_meta, prigg_tss1000_normcounts, prigg_meta, scaleIgG=0.418)
+write.table(ctcf_ctcfPeaks_counts_corrected, file=paste0(myPath,"/correctedCounts/CTCF/ctcf_ctcfPeaks_correctedCounts.txt"),sep='\t', quote=FALSE,row.names=TRUE)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

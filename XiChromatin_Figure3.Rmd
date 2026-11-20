@@ -1,0 +1,140 @@
+---
+title: "XiChromatin_Figure3"
+output: html_notebook
+---
+
+
+
+```{r setup}
+myPath <- "path_to_github" #ADD PATH TO GITHUB FOLDER
+
+#load functions
+source(paste0(myPath, "/functions/downstreamAnalysisFunctions.R"))
+
+# import metadata
+metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+# read in relevant files
+k27me3_pcg_counts_corrected<-read.delim(paste0(myPath, "/correctedCounts/K27me3/k27me3_pcg_correctedCounts.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+k27me3_meta<-metadata_all[rownames(metadata_all) %in% colnames(k27me3_pcg_counts_corrected),]
+
+k27me3_pcg_lm_corrected<-read.delim(paste0(myPath,"/linearModeling/corrected/K27me3/k27me3_pcg_lm_corrected.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+# normalize for gene length
+k27me3_lenNorm<-lenNormal(k27me3_pcg_counts_corrected,k27me3_pcg_lm_corrected, paste0(myPath,"/annotations/pcgSAF.txt"))
+k27me3_pcg_counts_lenNorm<-k27me3_lenNorm[1][[1]]
+k27me3_lm_lenNorm<-k27me3_lenNorm[2][[1]]
+
+```
+
+# Distribution of H3K27me3 across chrX
+```{r k27me3_distribution}
+
+# Read in linear modeling
+k27me3_chrX1kb_lm<-read.delim(paste0(myPath,"/linearModeling/raw/K27me3/k27me3_chrX1kb_lm.txt"), row.names=1, stringsAsFactors = FALSE, check.names=FALSE)
+k27me3_chrX1kb_lm<-k27me3_chrX1kb_lm[is.na(k27me3_chrX1kb_lm$x_his_pval)==FALSE,]
+
+# Figure 3A: Histogram
+histplot<-formatPlot(histogram_xaVxi(k27me3_chrX1kb_lm, "pink", "deeppink2")+xlim(0,5)+xlab("H3K27me3 Level")+ylab("Frequency")+
+  annotate("text", x=Inf, y=Inf, label=paste0("p: ", pVal), hjust=1.1, vjust=1.1, size=4))+geom_vline(xintercept = median(k27me3_chrX1kb_lm$intercept_his), color="pink", linetype='dashed')+
+geom_vline(xintercept = median(k27me3_chrX1kb_lm$x_his_coeff), color="deeppink2", linetype='dashed')+ggtitle("H3K27me3 Distributions on Xa and Xi")+theme(plot.title = element_text(hjust = 0.5))
+
+# Figure 3B: Point density plot 
+k27me3_density<-densePlot_xaVxi(k27me3_chrX1kb_lm)+xlab("H3K27me3 on Xa")+ylab("H3K27me3 on Xi")+
+  annotate("text", x=Inf, y=Inf, label=paste0("p: ", pVal), hjust=1.1, vjust=1.1, size=4) +xlim(0,4)+ylim(0,4)
+
+
+```
+
+# Track Plotting
+
+```{r H3K27me3 Tracks}
+suppressPackageStartupMessages(library(biomaRt)) #please note, biomaRt is no longer supported by ensembl.
+suppressPackageStartupMessages(library(trackDJ))
+trackFiles<-c("7241_XY_H3K27me3.bw","5755_XY_H3K27me3.bw","7229_XY_H3K27me3.bw", "6029_XX_H3K27me3.bw" ,"7247_XX_H3K27me3.bw","7249_XX_H3K27me3.bw","7242_XXXXY_H3K27me3.bw", "7324_XXXXY_H3K27me3.bw", "7346_XXXXY_H3K27me3.bw") # replace with paths to bigwig files
+trackNames<-c("XY_1","XY_2","XY_3","XX_1","XX_2","XX_3","XXXXY_1", "XXXXY_2","XXXXY_3")
+
+### Import annotation 
+
+## if using biomaRt:
+mart<-useMart("ensembl", dataset="hsapiens_gene_ensembl")
+
+## if supplying annotation file:
+# suppressPackageStartupMessages(library(GRanges))
+# annotation<-import(PATH_TO_GTF)
+
+#### Figure 3C: PRPS2
+trackFiles<-c("7241_XY_H3K27me3.bw","5755_XY_H3K27me3.bw","7229_XY_H3K27me3.bw", "6029_XX_H3K27me3.bw" ,"7247_XX_H3K27me3.bw","7249_XX_H3K27me3.bw","7242_XXXXY_H3K27me3.bw", "7324_XXXXY_H3K27me3.bw", "7346_XXXXY_H3K27me3.bw")
+trackNames<-c("XY_1","XY_2","XY_3","XX_1","XX_2","XX_3","XXXXY_1", "XXXXY_2","XXXXY_3")
+
+## if using biomart
+prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  mart=mart, ymax=0.8,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/H3K27me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=0.8,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K27me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(prps2_tracks$figure)
+
+#### Figure 3E: KDM6A
+## if using biomart
+kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  mart=mart, upDown=c(25000,25000), ymax=0.8,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/H3K27me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  custom_anno=annotation, gene_symbol=”gene_id”, upDown=c(25000,25000), ymax=0.8,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K27me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(kdm6a_tracks$figure)
+
+
+#### Figure 3G: XIST
+## if using biomart
+xist_tracks<-plot_genomic_tracks(genomicLoc="XIST",  mart=mart, ymax=0.8,
+                                  covFiles = trackFiles, covTrackNames=trackNames,
+                                  peakFiles = paste0(myPath,"/consensusPeaks/H3K27me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+## if supplying annotation
+# xist_tracks<-plot_genomic_tracks(genomicLoc="XIST",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=0.8,
+#                                   covFiles = trackFiles, covTrackNames=trackNames,
+#                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K27me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
+
+print(xist_tracks$figure)
+
+```
+
+# Linear modeling graphs 
+
+```{r linearModelingPlots}
+
+# Figure 3D: PRPS2
+PRPS2_k27me3<-plotgene('PRPS2', 'X', metaFile,k27me3_pcg_counts_lenNorm, 'H3K27me3' ,-1,35, 'black' )
+PRPS2_k27me3_line<-addLineInfo('PRPS2',k27me3_lm_lenNorm, PRPS2_k27me3 )
+print(PRPS2_k4me3_peaks_line)
+
+# Figure 3F: KDM6A
+KDM6A_k27me3<-plotgene('KDM6A', 'X', metaFile,k27me3_pcg_counts_lenNorm, 'H3K27me3',-1,35, 'black' )
+KDM6A_k27me3_line<-addLineInfo("KDM6A", k27me3_lm_lenNorm,KDM6A_k27me3)
+print(KDM6A_k27me3_line)
+
+# Figure 3H: XIST
+XIST_k27me3<-plotgene('XIST', 'X',metaFile,k27me3_pcg_counts_lenNorm, 'H3K27me3',-1,35, 'black'  )
+XIST_k27me3_line<-addLineInfo('XIST',k27me3_lm_lenNorm, XIST_k27me3 )
+
+print(XIST_k4me3_peaks_line)
+```
+
+# Compare Xi-silent vs Xi-expressed genes on Xa and Xi
+```{r silVexp}
+k27me3_lm_lenNorm<-expStatus((k27me3_lm_lenNorm))
+k27me3_lm_lenNorm$xciStatus<-factor(k27me3_lm_lenNorm$xciStatus, levels=c("Xi-silent", "Xi-expressed", "not expressed", "XIST", "no XCI call"))
+xaXicolorList_k27<-c("Xa"="pink", "Xi"="deeppink2")
+
+# Figure 3I: Boxplot
+k27me3_box<-formatPlot(xa_xi_box(k27me3_lm_lenNorm,"LCL")+scale_fill_manual(values=xaXicolorList_k27)+xlab("XCI Status")+ylab("H3K27me3 Level \n (Normalized counts)"))+ylim(-2,6)+theme(aspect.ratio=1)
+
+```
+
+

@@ -1,0 +1,85 @@
+---
+title: "XiChromatin_Figure5"
+output: html_notebook
+---
+
+```{r setup}
+myPath <- "path_to_github" #ADD PATH TO GITHUB FOLDER
+
+#load functions
+source(paste0(myPath, "/functions/downstreamAnalysisFunctions.R"))
+
+# import metadata
+metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+# read in relevant files
+k4me3_peaks_counts_corrected<-read.delim(paste0(myPath, "/correctedCounts/K4me3/k4me3_k4Peaks_correctedCounts.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+k4me3_meta<-metadata_all[rownames(metadata_all) %in% colnames(k4me3_peaks_counts_corrected),]
+
+k4me3_peakList<-read.delim(paste0(myPath,'/consensusPeaks/H3K4me3_consensusPeakset_SAF.txt'), check.names = FALSE, stringsAsFactors = FALSE, header = TRUE)
+annoFile<-read.delim(paste0(myPath,"/annotations/tss1000_condensed_SAF.txt"), check.names=FALSE, stringsAsFactors = FALSE, header=TRUE)
+
+#only want the protein coding genes
+annoFile_pcg<-read.delim(paste0(myPath,"/annotations/pcgSAF.txt"), check.names=FALSE,
+                         stringsAsFactors = FALSE, header=TRUE)
+annoFile<-annoFile[annoFile$Gene%in% annoFile_pcg$GeneID,]
+
+k4me3_peakListAnno<-annotatePeakFile(k4me3_peakList, annoFile)
+k4me3_peakListAnnoX<-k4me3_peakListAnno[k4me3_peakListAnno$Chr=="chrX",]
+
+k4me3_k4Peaklm_corrected<-read.delim(paste0(myPath,"/linearModeling/corrected/K4me3/k4me3_k4me3Peaks_lm_corrected.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+ctcf_peaks_counts_corrected<-read.delim(paste0(myPath, "/correctedCounts/CTCF/ctcf_ctcfPeaks_correctedCounts.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+ctcf_meta<-metadata_all[rownames(metadata_all) %in% colnames(ctcf_peaks_counts_corrected),]
+
+ctcf_peakList<-read.delim(paste0(myPath,'/consensusPeaks/CTCF_consensusPeakset_SAF.txt'), check.names = FALSE, stringsAsFactors = FALSE, header = TRUE)
+
+ctcf_peakListAnno<-annotatePeakFile(ctcf_peakList, annoFile)
+ctcf_peakListAnnoX<-ctcf_peakListAnno[ctcf_peakListAnno$Chr=="chrX",]
+
+ctcf_ctcfPeaklm_corrected<-read.delim(paste0(myPath,"/linearModeling/corrected/CTCF/ctcf_ctcfPeaks_lm_corrected.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+
+```
+
+
+```{r k4me3_ctcf_scatter}
+k4me3_peakLm_X$PeakID<-rownames(k4me3_peakLm_X)
+k4me3_peakLm_X<-peakGeneMatch(k4me3_peakLm_X, k4me3_peakListAnnoX)
+k4me3_peakLm_X<-expStatus(k4me3_peakLm_X)
+k4me3_peakLm_X_summed<-sumPeaksbyGene(k4me3_peakLm_X)
+
+ctcf_peakLm_X$PeakID<-rownames(ctcf_peakLm_X)
+ctcf_peakLm_X<-peakGeneMatch(ctcf_peakLm_X, ctcf_peakListAnnoX)
+ctcf_peakLm_X<-expStatus(ctcf_peakLm_X)
+ctcf_peakLm_X_summed<-sumPeaksbyGene(ctcf_peakLm_X)
+
+
+k4me3_ctcf_combined<-combineLms(k4me3_peakLm_X_summed, "k4me3", ctcf_peakLm_X_summed, "ctcf")
+
+k4me3_ctcf_combined<-combineLms(k4me3_peakLm_X_summed, "k4me3", ctcf_peakLm_X_summed, "ctcf")
+k4me3_ctcf_combined$xciStatus_lcl<-factor(k4me3_ctcf_combined$xciStatus_lcl, levels=c("Xi-silent", "Xi-expressed", "not expressed", "XIST", "no XCI call"))
+k4me3_ctcf_cols<-c("Xi-silent"="orchid", "Xi-expressed"="darkorchid4", "XIST"="black","not expressed"="gray60")
+
+k4me3_ctcf_combined$label<-NA
+k4me3_ctcf_combined$label[k4me3_ctcf_combined$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST")]<-k4me3_ctcf_combined[k4me3_ctcf_combined$Gene %in% c("PRPS2", "KDM6A", "NAP1L3", "XIST"),]$Gene
+k4me3_ctcf_combined$label[k4me3_ctcf_combined$x_his_coeff_k4me3>50 &k4me3_ctcf_combined$xciStatus_lcl!="Xi-expressed" ]<-k4me3_ctcf_combined[k4me3_ctcf_combined$x_his_coeff_k4me3>50 &k4me3_ctcf_combined$xciStatus_lcl!="Xi-expressed",]$Gene
+
+# Figure 5A: Xi k4me3 vs Xi CTCF scatterpolot
+k4me3_ctcf_xi_plot<-formatPlot(ggplot(data=k4me3_ctcf_combined[k4me3_ctcf_combined$xciStatus_lcl!="no XCI call",], mapping=aes(x=x_his_coeff_k4me3, y=x_his_coeff_ctcf, label=label))+geom_point(size=3, alpha=0.7, aes(color=xciStatus_lcl))+
+  scale_color_manual(values=k4me3_ctcf_cols)+theme_classic()+geom_smooth(method="lm", color="black", linetype="dashed")+geom_text_repel())
+
+# Figure 5B: Xa k4me3 vs Xa CTCF scatterplot
+k4me3_ctcf_xa_plot<-formatPlot(ggplot(data=k4me3_ctcf_combined[k4me3_ctcf_combined$xciStatus_lcl!="no XCI call",], mapping=aes(x=intercept_his_k4me3, y=intercept_his_ctcf,label=label))+geom_point(size=3, alpha=0.7, aes(color=xciStatus_lcl))+scale_color_manual(values=k4me3_ctcf_cols)+theme_classic()+geom_smooth(method="lm", color="black", linetype="dashed")+geom_text_repel())
+
+# Figure 5C: deltak4me3.x vs deltaCTCF.x scatterplot
+k4me3_ctcf_combined$dk4me3.x<-k4me3_ctcf_combined$x_his_coeff_k4me3/k4me3_ctcf_combined$intercept_his_k4me3
+k4me3_ctcf_combined$dctcf.x<-k4me3_ctcf_combined$x_his_coeff_ctcf/k4me3_ctcf_combined$intercept_his_ctcf
+
+deltasPlot<-formatPlot(ggplot(data=k4me3_ctcf_combined[k4me3_ctcf_combined$xciStatus_lcl!="no XCI call" & k4me3_ctcf_combined$xciStatus_lcl!=
+                                                         "XIST",], mapping=aes(x=dk4me3.x, y=dctcf.x, label=label))+geom_point(size=3, alpha=0.7, aes(color=xciStatus_lcl))+
+                         scale_color_manual(values=k4me3_ctcf_cols)+theme_classic()+geom_smooth(method="lm", color="black", linetype="dashed")+geom_text_repel())
+```
+
+
+
+
