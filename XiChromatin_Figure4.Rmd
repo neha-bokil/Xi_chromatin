@@ -56,7 +56,7 @@ prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  mart=mart, ymax=1,
                                   covFiles = trackFiles, covTrackNames=trackNames,
                                   peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 ## if supplying annotation
-# prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=1,
+# prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  custom_anno=annotation, gene_symbol="gene_name", ymax=1,
 #                                   covFiles = trackFiles, covTrackNames=trackNames,
 #                                   peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 
@@ -68,7 +68,7 @@ kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  mart=mart, upDown=c(4000,
                                   covFiles = trackFiles, covTrackNames=trackNames,
                                   peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 ## if supplying annotation
-# kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  custom_anno=annotation, gene_symbol=”gene_id”, upDown=c(4000,2000), ymax=1,
+# kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  custom_anno=annotation, gene_symbol="gene_name", upDown=c(4000,2000), ymax=1,
 #                                   covFiles = trackFiles, covTrackNames=trackNames,
 #                                   peakFiles = paste0(myPath,"/consensusPeaks/CTCF_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 

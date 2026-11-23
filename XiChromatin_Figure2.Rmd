@@ -45,7 +45,7 @@ trackNames<-c("XY_1","XY_2","XY_3","XX_1","XX_2","XX_3","XXXXY_1", "XXXXY_2","XX
 ## if using biomaRt:
 mart<-useMart("ensembl", dataset="hsapiens_gene_ensembl")
 
-## if supplying annotation file:
+## if supplying annotation file: (ex: downloaded file from GENCODE)
 # suppressPackageStartupMessages(library(GRanges))
 # annotation<-import(PATH_TO_GTF)
 
@@ -55,7 +55,7 @@ prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  mart=mart, ymax=1.5,
                                   covFiles = trackFiles, covTrackNames=trackNames,
                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 ## if supplying annotation
-# prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=1.5,
+# prps2_tracks<-plot_genomic_tracks(genomicLoc="PRPS2",  custom_anno=annotation, gene_symbol="gene_name", ymax=1.5,
 #                                   covFiles = trackFiles, covTrackNames=trackNames,
 #                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 
@@ -67,7 +67,7 @@ kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  mart=mart, upDown=c(4000,
                                   covFiles = trackFiles, covTrackNames=trackNames,
                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 ## if supplying annotation
-# kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  custom_anno=annotation, gene_symbol=”gene_id”, upDown=c(4000,2000), ymax=1.5,
+# kdm6a_tracks<-plot_genomic_tracks(genomicLoc="KDM6A",  custom_anno=annotation, gene_symbol="gene_name", upDown=c(4000,2000), ymax=1.5,
 #                                   covFiles = trackFiles, covTrackNames=trackNames,
 #                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 
@@ -79,7 +79,7 @@ xist_tracks<-plot_genomic_tracks(genomicLoc="XIST",  mart=mart, ymax=1.5,
                                   covFiles = trackFiles, covTrackNames=trackNames,
                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 ## if supplying annotation
-# xist_tracks<-plot_genomic_tracks(genomicLoc="XIST",  custom_anno=annotation, gene_symbol=”gene_id”, ymax=1.5,
+# xist_tracks<-plot_genomic_tracks(genomicLoc="XIST",  custom_anno=annotation, gene_symbol="gene_name", ymax=1.5,
 #                                   covFiles = trackFiles, covTrackNames=trackNames,
 #                                   peakFiles = paste0(myPath,"/consensusPeaks/H3K4me3_consensusPeakset.bed"), peakTrackNames=c("Peaks")) 
 
