@@ -1,6 +1,7 @@
 #####functions for Linear Modeling#####
 suppressPackageStartupMessages(library(broom))
 
+
 #linear modeling - no sequencing batch corrections
 lmanalysis_noseqBatch<-function(countTable, resTable, metaTable){
   region_res<-character()
@@ -174,6 +175,10 @@ lmanalysis_seqBatch<-function(countTable, resTable, metaTable){
 
 #use this to actually run the linear modeling--it will decide whether you can correct for seqBatch or not
 to_run_lmanalysis<-function(countTable1, metaTable1, filePrefix, selectXY=FALSE){
+  # ensure samples are in the correct order
+  commonSamps<-intersect(rownames(metaTable1), colnames(countTable1))
+  metaTable1<-metaTable1[commonSamps,]
+  countTable1<-countTable1[,commonSamps]
   resTable1<-data.frame(intercept_his=numeric(), interr_his=numeric(), xbeta_his=numeric(), xpval_his=numeric(), xerr_his=numeric(), 
                         ybeta_his=numeric(), ypval_his=numeric(), yerr_his=numeric(), adj_rsq_his=numeric(), pval_his=numeric())
   

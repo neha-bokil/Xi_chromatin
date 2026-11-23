@@ -11,6 +11,13 @@ myPath <- "path_to_github" #ADD PATH TO GITHUB FOLDER
 #import linear modeling functions
 source(paste0(myPath,"/functions/linearModelingFunctions.R"))
 
+# get gene categories
+geneCats<-readRDS(paste0(myPath,"/annotations/geneLists.rds"))
+PAR1_genes<-geneCats$PAR1_genes
+PAR2_genes<-geneCats$PAR2_genes
+NPX_genes<-geneCats$NPX_genes
+NPY_genes<-geneCats$NPY_genes
+sexChrom_genes<-geneCats$sexChrom_genes
 ```
 
 # Data processing
@@ -98,6 +105,8 @@ source(paste0(myPath,"/functions/linearModelingFunctions.R"))
 # expmeta$SequencingBatch<-factor(expmeta$SequencingBatch)
 # deseqRes<-to_run_deseq(expdata, expmeta, OUTPUT_PREFIX)
 
+### 
+
 ```
 
 # Linear Modeling 
@@ -105,7 +114,7 @@ source(paste0(myPath,"/functions/linearModelingFunctions.R"))
 #### START HERE WITH PROCESSED NORMALIZED COUNTS DATA ####
 
 # get metadata for all marks
-metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE)
+metadata_all<-read.delim(paste0(myPath, "/metadata.txt"), check.names=FALSE, stringsAsFactors = FALSE, row.names=1)
 k27me3_meta<-metadata_all[metadata_all$Mark=="H3K27me3",]
 k4me3_meta<-metadata_all[metadata_all$Mark=="H3K4me3",]
 ctcf_meta<-metadata_all[metadata_all$Mark=="CTCF",]
